@@ -11,7 +11,7 @@ import CoreLocation
 struct TramView: View {
     let gtfs: GTFSDatabase
     
-    @State private var stops: [GTFS.Stop] = []
+    @State private var stops: [(stop: GTFS.Stop, distance: Double)] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var routesByStopId: [
@@ -22,25 +22,53 @@ struct TramView: View {
     
     var body: some View {
         VStack {
-            List {
-                ForEach(stops, id: \.stopId) { stop in
-                    VStack(alignment: .leading) {
-                        Text(formatStopName(stop.stopName))
+            if isLoading {
+                ProgressView("Finding nearby stops...")
+            }
 
-                        let routes = routesByStopId[stop.stopId] ?? []
+            if let errorMessage {
+                ContentUnavailableView(
+                    "Unable to Load Stops",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(errorMessage)
+                )
+            }
+            
+            List {
+                ForEach(stops, id: \.stop.stopId) { result in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(formatStopName(result.stop.stopName))
+                                .font(.headline)
+
+                            Spacer()
+                            
+                            Text("\(Int(result.distance.rounded())) m")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        let routes = routesByStopId[result.stop.stopId] ?? []
 
                         if routes.count == 2 {
                             Text("Terminus")
                                 .font(.subheadline)
+                        } else if let route = routes.first {
+                            Text(
+                                "\(route.routeId) — \(route.direction ?? "Unknown direction")"
+                            )
+                            .font(.subheadline)
                         } else {
-                            Text("\(routes[0].routeId) — \(routes[0].direction ?? "Unknown direction")")
+                            // Should never happen
+                            Text("No routes found")
                                 .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
         }
-        .navigationTitle(Text("Tram"))
+        .navigationTitle("Tram")
         .task {
             locationManager.requestLocation()
         }
@@ -57,8 +85,10 @@ struct TramView: View {
         }
     }
     
+    @MainActor
     private func loadStops() async throws {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         
         guard let location = locationManager.location else { return }
@@ -69,13 +99,15 @@ struct TramView: View {
         )
 
         routesByStopId = try await gtfs.routes(
-            atStops: nearbyStops.map(\.stopId)
+            atStops: nearbyStops.map(\.stop.stopId)
         )
 
         stops = nearbyStops
     }
     
-    private func formatStopName(_ stopName: String) -> String {
+    private func formatStopName(_ stopName: String?) -> String {
+        let stopName = stopName ?? "Unknown stop"
+        
         let formatted: String
 
         if let range = stopName.range(
@@ -89,8 +121,8 @@ struct TramView: View {
             formatted = stopName
         }
 
-        if formatted.count > 28 {
-            return String(formatted.prefix(25)) + "..."
+        if formatted.count > 33 {
+            return String(formatted.prefix(30)) + "..."
         }
 
         return formatted
