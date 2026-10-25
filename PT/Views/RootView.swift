@@ -8,15 +8,13 @@
 import SwiftUI
 
 struct RootView: View {
+    private let gtfs = GTFSDatabase.shared
+    
     var body: some View {
         TabView {
             Tab("Tram", systemImage: "tram") {
-                NavigationStack { TramView() }
+                NavigationStack { TramView(gtfs: gtfs) }
             }
         }
     }
-}
-
-#Preview {
-    RootView()
 }
