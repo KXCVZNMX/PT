@@ -80,29 +80,47 @@ nonisolated final class GTFSDatabase {
     }
     
     /// Batch fetch version
-    func routes(atStops stopIds: [String]) async throws -> [String: [(routeType: String, routeId: String, direction: String?)]] {
+    func routes(atStops stopIds: [String]) async throws -> [String: [(routeType: String, routeId: String, direction: String)]] {
         guard !stopIds.isEmpty else { return [:] }
 
         return try await dbQueue.read { db in
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT DISTINCT st.stop_id, st.route_type, st.route_id, substr(t.shape_id, -1) AS direction
-                    FROM stop_times st
-                    JOIN trips t ON t.trip_id = st.trip_id
-                    WHERE st.stop_id IN (\(databaseQuestionMarks(count: stopIds.count)))
-                    ORDER BY st.stop_id, st.route_type, st.route_id, direction
+                    WITH counts AS (
+                        SELECT st.stop_id, st.route_type, st.route_id,
+                               t.direction_id, t.trip_headsign, COUNT(*) AS n
+                        FROM stop_times st
+                        JOIN trips t ON t.trip_id = st.trip_id
+                        WHERE st.stop_id IN (\(databaseQuestionMarks(count: stopIds.count)))
+                          AND t.trip_headsign IS NOT NULL
+                          AND t.trip_headsign <> ''
+                        GROUP BY st.stop_id, st.route_type, st.route_id,
+                                 t.direction_id, t.trip_headsign
+                    ),
+                    ranked AS (
+                        SELECT *,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY stop_id, route_type, route_id, direction_id
+                               ORDER BY n DESC, trip_headsign
+                           ) AS rn
+                        FROM counts
+                    )
+                    SELECT stop_id, route_type, route_id, trip_headsign
+                    FROM ranked
+                    WHERE rn = 1
+                    ORDER BY stop_id, route_type, route_id, direction_id
                     """,
                 arguments: StatementArguments(stopIds)
             )
 
-            var result: [String: [(routeType: String, routeId: String, direction: String?)]] = [:]
+            var result: [String: [(routeType: String, routeId: String, direction: String)]] = [:]
             for row in rows {
                 let stopId: String = row["stop_id"]
                 result[stopId, default: []].append((
                     routeType: row["route_type"],
                     routeId: row["route_id"],
-                    direction: row["direction"]
+                    direction: row["trip_headsign"]
                 ))
             }
             return result
