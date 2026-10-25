@@ -89,6 +89,33 @@ nonisolated final class GTFSDatabase {
         }.map{ (routeType: $0["route_type"], routeId: $0["route_id"]) }
     }
     
+    /// Batch fetch version
+    func routes(atStops stopIds: [String]) async throws -> [String: [(routeType: String, routeId: String)]] {
+        guard !stopIds.isEmpty else { return [:] }
+
+        return try await dbQueue.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT DISTINCT stop_id, route_type, route_id
+                    FROM stop_times
+                    WHERE stop_id IN (\(databaseQuestionMarks(count: stopIds.count)))
+                    ORDER BY stop_id, route_type, route_id
+                    """,
+                arguments: StatementArguments(stopIds)
+            )
+
+            var result: [String: [(routeType: String, routeId: String)]] = [:]
+            for row in rows {
+                let stopId: String = row["stop_id"]
+                result[stopId, default: []].append(
+                    (routeType: row["route_type"], routeId: row["route_id"])
+                )
+            }
+            return result
+        }
+    }
+    
     // MARK: shapes
     
     /// The polyline for a route (shape), in drawing order
