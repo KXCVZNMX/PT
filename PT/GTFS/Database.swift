@@ -220,7 +220,7 @@ nonisolated final class GTFSDatabase {
         longitude: Double,
         radiusMeters: Double = 2000,
         limit: Int = 50
-    ) async throws -> [GTFS.Stop] {
+    ) async throws -> [(stop: GTFS.Stop, distance: Double)] {
         var lat = latitude
         var lon = longitude
 
@@ -234,24 +234,50 @@ nonisolated final class GTFSDatabase {
         let dLat = radiusMeters / 111_320
         let dLon = radiusMeters / (111_320 * max(cos(lat * .pi / 180), 0.01))
         
-        
         return try await dbQueue.read { [lat, lon] db in
-            try GTFS.Stop.fetchAll(
+            let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT * FROM stops
-                    WHERE location_type IN (0, 1)
-                        AND stop_lat BETWEEN :lat - :dLat AND :lat + :dLat
-                        AND stop_lon BETWEEN :lon - :dLon AND :lon + :dLon
-                    ORDER BY (stop_lat - :lat) * (stop_lat - :lat)
-                        + (stop_lon - :lon) * (stop_lon - :lon)
+                    SELECT *
+                    FROM (
+                        SELECT *,
+                            6371000 * 2 * ASIN(
+                                SQRT(
+                                    MIN(1.0,
+                                        MAX(0.0,
+                                            POWER(SIN((stop_lat - :lat) * :rad / 2), 2)
+                                            + COS(:lat * :rad)
+                                            * COS(stop_lat * :rad)
+                                            * POWER(SIN((stop_lon - :lon) * :rad / 2), 2)
+                                        )
+                                    )
+                                )
+                            ) AS distance
+                        FROM stops
+                        WHERE location_type IN (0, 1)
+                            AND stop_lat BETWEEN :lat - :dLat AND :lat + :dLat
+                            AND stop_lon BETWEEN :lon - :dLon AND :lon + :dLon
+                    )
+                    WHERE distance <= :radius
+                    ORDER BY distance
                     LIMIT :limit
                     """,
                 arguments: [
-                    "lat": lat, "lon": lon,
-                    "dLat": dLat, "dLon": dLon, "limit": limit,
+                    "lat": lat,
+                    "lon": lon,
+                    "dLat": dLat,
+                    "dLon": dLon,
+                    "rad": Double.pi / 180,
+                    "radius": radiusMeters,
+                    "limit": limit
                 ]
             )
+            
+            return try rows.map { row in
+                let stop = try GTFS.Stop(row: row)
+                let distance = row["distance"] as Double
+                return (stop: stop, distance: distance)
+            }
         }
     }
 }
