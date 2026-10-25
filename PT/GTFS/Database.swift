@@ -183,6 +183,11 @@ nonisolated final class GTFSDatabase {
         radiusMeters: Double = 2000,
         limit: Int = 50
     ) async throws -> [GTFS.Stop] {
+        #if DEBUG
+        let latitude = -37.81
+        let longitude = 145.08
+        #endif
+        
         let dLat = radiusMeters / 111_320
         let dLon = radiusMeters / (111_320 * max(cos(latitude * .pi / 180), 0.01))
         
