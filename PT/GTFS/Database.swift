@@ -74,24 +74,9 @@ nonisolated final class GTFSDatabase {
     }
     
     /// All routes which feeds into this stop
-    func routes(atStop stopId: String) async throws -> [(routeType: String, routeId: String, direction: String?)] {
-        try await dbQueue.read { db in
-            try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT DISTINCT st.route_type, st.route_id,
-                                    substr(t.shape_id, -1) AS direction
-                    FROM stop_times st
-                    JOIN trips t ON t.trip_id = st.trip_id
-                    WHERE st.stop_id = ?
-                    ORDER BY st.route_type, st.route_id, direction
-                    """,
-                arguments: [stopId]
-            )
-            .map { row -> (routeType: String, routeId: String, direction: String?) in
-                (routeType: row["route_type"], routeId: row["route_id"], direction: row["direction"])
-            }
-        }
+    func routes(atStop stopId: String) async throws
+        -> [(routeType: String, routeId: String, direction: String?)] {
+        try await routes(atStops: [stopId])[stopId] ?? []
     }
     
     /// Batch fetch version
