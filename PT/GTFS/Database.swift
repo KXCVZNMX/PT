@@ -21,6 +21,15 @@ nonisolated final class GTFSDatabase {
         dbQueue = try DatabaseQueue(path: path, configuration: config)
     }
     
+    /// Shared reference of the db 
+    static let shared: GTFSDatabase = {
+        do {
+            return try GTFSDatabase(path: GTFSStore.installedDatabasePath())
+        } catch {
+            fatalError("Could not open gtfs.sqlite: \(error)")
+        }
+    }()
+    
     // MARK: stop_times
     
     /// Departures for a specific stop after `afterSeconds`
@@ -171,8 +180,8 @@ nonisolated final class GTFSDatabase {
     func nearbyStops(
         latitude: Double,
         longitude: Double,
-        radiusMeters: Double = 500,
-        limit: Int = 20
+        radiusMeters: Double = 2000,
+        limit: Int = 50
     ) async throws -> [GTFS.Stop] {
         let dLat = radiusMeters / 111_320
         let dLon = radiusMeters / (111_320 * max(cos(latitude * .pi / 180), 0.01))
