@@ -7,6 +7,8 @@
 
 import Foundation
 
+// TODO: This should be removed later on, as this doubles the application size. (~800mb to ~1.6gb)
+
 nonisolated enum GTFSStoreError: Error {
     case missingBundledDatabase
 }
