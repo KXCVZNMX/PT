@@ -203,15 +203,21 @@ nonisolated final class GTFSDatabase {
         radiusMeters: Double = 2000,
         limit: Int = 50
     ) async throws -> [GTFS.Stop] {
+        var lat = latitude
+        var lon = longitude
+
         #if DEBUG
-        let latitude = -37.81
-        let longitude = 145.08
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+            lat = -37.81
+            lon = 145.08
+        }
         #endif
         
         let dLat = radiusMeters / 111_320
-        let dLon = radiusMeters / (111_320 * max(cos(latitude * .pi / 180), 0.01))
+        let dLon = radiusMeters / (111_320 * max(cos(lat * .pi / 180), 0.01))
         
-        return try await dbQueue.read { db in
+        
+        return try await dbQueue.read { [lat, lon] db in
             try GTFS.Stop.fetchAll(
                 db,
                 sql: """
@@ -224,7 +230,7 @@ nonisolated final class GTFSDatabase {
                     LIMIT :limit
                     """,
                 arguments: [
-                    "lat": latitude, "lon": longitude,
+                    "lat": lat, "lon": lon,
                     "dLat": dLat, "dLon": dLon, "limit": limit,
                 ]
             )
