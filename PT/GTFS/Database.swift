@@ -74,43 +74,51 @@ nonisolated final class GTFSDatabase {
     }
     
     /// All routes which feeds into this stop
-    func routes(atStop stopId: String) async throws -> [(routeType: String, routeId: String)] {
-        try dbQueue.read { db in
+    func routes(atStop stopId: String) async throws -> [(routeType: String, routeId: String, direction: String?)] {
+        try await dbQueue.read { db in
             try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT DISTINCT route_type, route_id
-                    FROM stop_times
-                    WHERE stop_id = ?
-                    ORDER BY route_type, route_id
+                    SELECT DISTINCT st.route_type, st.route_id,
+                                    substr(t.shape_id, -1) AS direction
+                    FROM stop_times st
+                    JOIN trips t ON t.trip_id = st.trip_id
+                    WHERE st.stop_id = ?
+                    ORDER BY st.route_type, st.route_id, direction
                     """,
                 arguments: [stopId]
             )
-        }.map{ (routeType: $0["route_type"], routeId: $0["route_id"]) }
+            .map { row -> (routeType: String, routeId: String, direction: String?) in
+                (routeType: row["route_type"], routeId: row["route_id"], direction: row["direction"])
+            }
+        }
     }
     
     /// Batch fetch version
-    func routes(atStops stopIds: [String]) async throws -> [String: [(routeType: String, routeId: String)]] {
+    func routes(atStops stopIds: [String]) async throws -> [String: [(routeType: String, routeId: String, direction: String?)]] {
         guard !stopIds.isEmpty else { return [:] }
 
         return try await dbQueue.read { db in
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT DISTINCT stop_id, route_type, route_id
-                    FROM stop_times
-                    WHERE stop_id IN (\(databaseQuestionMarks(count: stopIds.count)))
-                    ORDER BY stop_id, route_type, route_id
+                    SELECT DISTINCT st.stop_id, st.route_type, st.route_id, substr(t.shape_id, -1) AS direction
+                    FROM stop_times st
+                    JOIN trips t ON t.trip_id = st.trip_id
+                    WHERE st.stop_id IN (\(databaseQuestionMarks(count: stopIds.count)))
+                    ORDER BY st.stop_id, st.route_type, st.route_id, direction
                     """,
                 arguments: StatementArguments(stopIds)
             )
 
-            var result: [String: [(routeType: String, routeId: String)]] = [:]
+            var result: [String: [(routeType: String, routeId: String, direction: String?)]] = [:]
             for row in rows {
                 let stopId: String = row["stop_id"]
-                result[stopId, default: []].append(
-                    (routeType: row["route_type"], routeId: row["route_id"])
-                )
+                result[stopId, default: []].append((
+                    routeType: row["route_type"],
+                    routeId: row["route_id"],
+                    direction: row["direction"]
+                ))
             }
             return result
         }
