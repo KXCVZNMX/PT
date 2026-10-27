@@ -36,33 +36,37 @@ struct TramView: View {
             
             List {
                 ForEach(stops, id: \.stop.stopId) { result in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(formatStopName(result.stop.stopName))
-                                .font(.headline)
+                    NavigationLink {
+                        TramStopView(stop: result.stop, distance: result.distance)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(formatStopName(result.stop.stopName))
+                                    .font(.headline)
 
-                            Spacer()
+                                Spacer()
+                                
+                                Text("\(Int(result.distance.rounded())) m")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                             
-                            Text("\(Int(result.distance.rounded())) m")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        let routes = routesByStopId[result.stop.stopId] ?? []
+                            let routes = routesByStopId[result.stop.stopId] ?? []
 
-                        if routes.count == 2 {
-                            Text("Terminus")
+                            if routes.count == 2 {
+                                Text("Terminus")
+                                    .font(.subheadline)
+                            } else if let route = routes.first {
+                                Text(
+                                    "\(route.routeId) — \(route.direction ?? "Unknown direction")"
+                                )
                                 .font(.subheadline)
-                        } else if let route = routes.first {
-                            Text(
-                                "\(route.routeId) — \(route.direction ?? "Unknown direction")"
-                            )
-                            .font(.subheadline)
-                        } else {
-                            // Should never happen
-                            Text("No routes found")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            } else {
+                                // Should never happen
+                                Text("No routes found")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -121,8 +125,8 @@ struct TramView: View {
             formatted = stopName
         }
 
-        if formatted.count > 30 {
-            return String(formatted.prefix(28)) + "..."
+        if formatted.count > 27 {
+            return String(formatted.prefix(25)) + "..."
         }
 
         return formatted
