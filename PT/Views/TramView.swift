@@ -121,8 +121,8 @@ struct TramView: View {
             formatted = stopName
         }
 
-        if formatted.count > 33 {
-            return String(formatted.prefix(30)) + "..."
+        if formatted.count > 30 {
+            return String(formatted.prefix(28)) + "..."
         }
 
         return formatted
