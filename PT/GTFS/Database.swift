@@ -23,8 +23,15 @@ nonisolated final class GTFSDatabase {
     
     /// Shared reference of the db 
     static let shared: GTFSDatabase = {
+        guard let url = Bundle.main.url(
+            forResource: "gtfs",
+            withExtension: "sqlite"
+        ) else {
+            fatalError("Could not find gtfs.sqlite in app bundle")
+        }
+
         do {
-            return try GTFSDatabase(path: GTFSStore.installedDatabasePath())
+            return try GTFSDatabase(path: url.path)
         } catch {
             fatalError("Could not open gtfs.sqlite: \(error)")
         }
